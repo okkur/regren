@@ -1,0 +1,121 @@
+#!/bin/bash
+# Check arguments.
+if [ "x$1" == "x"  ] || [ "x$2" == "x" ] || [ "x$3" == "x" ]
+then
+  # Print error.
+  echo "Error: Missing arguments."
+  # Print usage.
+  echo "Usage: $(basename "$0") registry max_images max_age"
+  # Exit.
+  exit 1
+fi
+
+# Get registry, maximum images and maximum age.
+registry="$1/v2"
+max_images="$(( $2 + 1 ))"
+max_age="$(( $(date "+%s") - $3 * 86400 ))"
+
+# Gets repositories.
+function get_repositories {
+  # Get repositories.
+  curl --silent "$registry/_catalog" | jq -r ".repositories[]"
+}
+
+# Gets tags by repository.
+function get_tags {
+  # Get repository.
+  repository="$1"
+
+  # Get tags by repository.
+  curl --silent "$registry/$repository/tags/list" | jq -r ".tags[]"
+}
+
+# Gets image by repository and tag.
+function get_image {
+  # Get repository and tag.
+  repository="$1"
+  tag="$2"
+
+  # Get image by repository and tag.
+  curl --silent "$registry/$repository/manifests/$tag" --header "Accept: application/vnd.docker.distribution.manifest.v2+json" | jq -r ".config.digest"
+}
+
+# Gets created by repository and image.
+function get_created {
+  # Get repository and image.
+  repository="$1"
+  image="$2"
+
+  # Get created by repository and image.
+  created="$(curl --silent "$registry/$repository/blobs/$image" | jq -r ".created")"
+
+  # Convert to seconds.
+  date --date "$created" "+%s"
+}
+
+# Deletes tag by repository and tag.
+function delete_tag {
+  # Get repository and tag.
+  repository="$1"
+  tag="$2"
+
+  # Get digest by repository and tag.
+  digest="$(curl --silent "$registry/$repository/manifests/$tag" --header "Accept: application/vnd.docker.distribution.manifest.v2+json" --head | grep "^Docker-Content-Digest\:.*$" | awk '{print $2}' | tr --delete '\r')"
+
+  # Delete tag by repository and digest.
+  curl --silent "$registry/$repository/manifests/$digest" --request DELETE
+}
+
+# Get repositories.
+repositories=$(get_repositories)
+
+# Iterate repositories.
+for repository in $repositories
+do
+  # Get tags by repository.
+  tags=$(get_tags "$repository")
+
+  # Iterate tags.
+  for tag in $tags
+  do
+    # Get image by repository and tag.
+    image="$(get_image "$repository" "$tag")"
+
+    # Get created by repository and image.
+    created="$(get_created "$repository" "$image")"
+
+    echo "$created $image $tag"
+  done > /tmp/tags
+
+  # Get images to delete.
+  awk '{print $1" "$2}' /tmp/tags | sort --numeric-sort --reverse --unique | tail --lines "+$max_images" > /tmp/images
+
+  # Iterate images.
+  while read line
+  do
+    # Get created.
+    created="$(echo "$line" | awk '{print $1}')"
+
+    # Check age.
+    if [ "$created" -lt "$max_age" ]
+    then
+      # Get image.
+      image="$(echo "$line" | awk '{print $2}')"
+
+      # Get tags to delete.
+      tags=$(grep "$image" /tmp/tags | awk '{print $3}')
+
+      # Iterate tags to delete.
+      for tag in $tags
+      do
+        # Log deletion.
+        echo "DELETE $repository:$tag [image: $image] [created: $created]"
+        # Delete tag.
+        delete_tag "$repository" "$tag"
+      done
+    fi
+  done < /tmp/images
+done
+
+# Run Docker Registry garbage collection.
+registry garbage-collect /etc/docker/registry/config.yml
