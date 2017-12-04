@@ -1,0 +1,40 @@
+project:
+  name: "regren"
+  state: "beta"
+  website: "github.com/okkur/regren"
+  oneLiner: "Cleanup your Docker registry using REST and native tools."
+  description: |
+    Delivering software is what we love. Running out of disk space prevents us from doing so.
+    regren helps tidying up your private registry by removing old images. 
+  version: "v1.0.0"
+  mainLicense: "apache2"
+  docsLicense: "CCBySa"
+
+readme:
+  usageExample: |
+    regren extends the official Docker Registry image by some cleanup scripts.
+    You can use this image to deploy your registry and run the script from inside or run it as a standalone container on-demand.
+
+contributionLinks:
+  starterIssues: "https://github.com/okkur/regren/labels/starter%20issue"
+
+emails:
+  security: "marco_ebert@icloud.com"
+  coc: "marco_ebert@icloud.com"
+
+copyright:
+  owner: "Marco Ebert"
+  year: "2017"
+
+cla:
+  copyrightHolder: "Marco Ebert"
+
+maintainers:
+  - name: "Marco Ebert"
+    nick: "Gacko"
+  - name: "Michael Grosser"
+    nick: "stp-ip"
+
+repo:
+  link: "https://github.com/okkur/regren"
+  type: "Github"
